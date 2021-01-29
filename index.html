@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Game Pirker/Puchleitner</title>
+
+        <style>
+canvas {
+    background-color: #efe;
+    border: 1px solid #000;
+    background-image: url("bilder/Klasse2.jpeg");
+    background-size: cover;
+}
+
+.score-container {
+    display: flex;
+    border: 1px solid rgb(0, 0, 0);
+    margin-bottom: 5px;
+    width: 1000px;
+}
+
+.score {
+    font-size: 30px;
+    font-weight: bold;
+    background-color: rgb(255, 255, 255);
+    color: rgb(200, 0, 0);
+    display: inline-block;
+    flex-grow: 1;
+    margin-left: 5px;
+}
+
+.countdown {
+    font-size: 30px;
+    font-weight: bold;
+    display: inline-block;
+    margin-right: 5px;
+}
+
+.statistics {
+    font-size: 30px;
+    font-weight: bold;
+    display: inline-block;
+    margin-right: 5px;
+}
+
+#startButton {
+    font-size: 50px;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+}
+
+#overlay {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-color: gray;
+  top: 0px;
+  left: 0px;
+  opacity: .7;
+}
+
+        </style>
+        <script>
+
+class GraphObj {
+
+    constructor(x, y, width, height) {
+        this.x = x;
+        this.y = y;
+        this.width = width;
+        this.height = height;
+        this.isHit = false;
+    }
+
+    draw(context) {
+        if (this.isHit) {
+            const img = new Image();
+            img.src = "bilder/ms4.jpg";
+            context.drawImage(img, this.x, this.y, this.width, this.height);
+        } else {
+            const img = new Image();
+            img.src = "bilder/ms4.jpg";
+            context.drawImage(img, this.x, this.y, this.width, this.height);
+            //TODO
+	}
+    }
+    
+    tick() {
+
+	if (!running)
+	    return;
+
+        this.x++;
+
+        var canvas = document.getElementById("myCanvas");
+        if (this.x > canvas.width)
+        {
+            this.x = -this.width;
+            this.y = this.y + this.height;
+        }
+
+        //Wenn das Target das Canvas überschreitet, wird die Position auf 0 zurückgesetzt.
+        if (this.y > canvas.height) {
+            this.x = -this.width;
+            this.y = 0;
+        }
+    }
+
+    //Überprüft ob es einen Hit gibt
+    hitTest(hitX, hitY) {
+
+        return this.x <= hitX && hitX <= this.x + this.width
+            && this.y <= hitY && hitY <= this.y + this.height;
+
+        /*
+        if (true) {
+            return true;
+        } else {
+            return false;
+        }
+        */
+    }
+
+    //Was passiert wenn es einen Treffer gibt
+    onHit() {
+
+	if (!running)
+	    return;
+
+        updateScore();
+
+        this.isHit = true;
+        updateTargets(this);
+    }
+}
+
+class Statistics {
+
+    constructor () {
+	this.hits = 0;
+	this.clicks = 0;
+    }
+
+    hit(count) {
+	this.hits += count;
+	this.clicks++;
+
+	this.onChanged();
+    }
+
+    miss() {
+	this.clicks++;
+
+	this.onChanged();
+    }
+
+    reset() {
+	this.clicks = 0;
+	this.hits = 0;
+
+	this.onChanged();
+    }
+
+    onChanged() {
+	updateStatistics(this.hits, this.clicks);
+    }
+}
+
+function updateStatistics(hits, clicks) {
+    var accuracy = clicks > 0 ? (hits/clicks*100).toFixed(0) + "%" : "n/a";
+    document.getElementById("accuracy").innerHTML = accuracy;
+    document.getElementById("hits").innerHTML = hits;
+    document.getElementById("clicks").innerHTML = clicks;
+}
+
+
+//Target stats sind veränderbar
+const targetWidth = 50;
+const targetHeight = 60;
+//const gameDuration = 120;
+const gameDuration = 10;
+
+var score = 0;
+var targets = [];
+var tickId; // identifies the continuosly called tick function
+var clockStartTime;
+var clockId;
+var running = false;
+var statistics = new Statistics();
+
+//"Zeichnet" alles
+function drawAll() {
+    var canvas = document.getElementById("myCanvas");
+    var context = canvas.getContext("2d");
+
+    context.clearRect(0, 0, canvas.width, canvas.height); // reset canvas (undo previous draws)
+    targets.forEach(target => target.draw(context));
+}
+
+//mausklick function
+function canvasMouseDown(e) {
+
+    if (!running)
+	return;
+
+	var count = 0;
+	targets.forEach((target) => {if (target.hitTest(e.offsetX, e.offsetY)){
+	count++;
+	}});
+    if (targets.some((target) => target.hitTest(e.offsetX, e.offsetY))) {
+	statistics.hit(count);
+    } else {
+	statistics.miss();
+    }
+
+    targets.forEach(function(target) {
+        if (target.hitTest(e.offsetX, e.offsetY)) {
+            target.onHit();
+        }
+    });
+}
+
+function updateScore() {
+    score++;
+    onScoreChanged();
+}
+
+function resetScore()
+{
+    score = 0;
+    onScoreChanged();
+}
+
+function onScoreChanged() {
+    document.getElementById("score").innerHTML = score;
+}
+
+//was passiert bei jedem tick
+function tick() {
+
+    if (!running)
+	return;
+
+    targets.forEach(target => target.tick());
+    drawAll(); 
+}
+
+function clockTick() {
+    const clock = document.getElementById("countdown");
+    const currentTime = new Date().getTime();
+    var millisecondsLeft = gameDuration*1000 - (currentTime - clockStartTime);
+
+    if (millisecondsLeft <= 0) {
+	endGame()
+        millisecondsLeft = 0;
+    }
+
+    clock.innerHTML = msToTime(millisecondsLeft);
+}
+
+function start() {
+
+    document.getElementById("startButton").style.visibility = 'hidden';
+    document.getElementById("overlay").style.display = 'none';
+
+    statistics.reset();
+    resetScore();
+
+    clearInterval(clockId);
+    clockStartTime = new Date().getTime();
+    clockId = setInterval(clockTick, 10);
+
+    const canvas = document.getElementById("myCanvas");
+    canvas.setAttribute('tabindex','0');
+    canvas.focus();
+    canvas.addEventListener('mousedown', canvasMouseDown);
+
+    spawnTargets();
+
+    running = true;
+    clearInterval(tickId);
+    tickId = setInterval(tick, 10);
+    drawAll();
+}
+
+function endGame() {
+    clearInterval(clockId);
+    clearInterval(tickId);
+    running = false;
+
+    document.getElementById("startButton").style.visibility = 'visible';
+    document.getElementById("overlay").style.display = 'block';
+}
+
+function msToTime(duration) {
+    var milliseconds = parseInt((duration % 1000) / 10);
+    var seconds = Math.floor((duration / 1000) % 60);
+    var minutes = Math.floor((duration / (1000 * 60)) % 60);
+
+    minutes = (minutes < 10) ? "0" + minutes : minutes;
+    seconds = (seconds < 10) ? "0" + seconds : seconds;
+    milliseconds = (milliseconds < 10) ? "0" + milliseconds : milliseconds;
+
+    /*
+    true ? 10 : 20;
+
+    if (true) {
+        return 10;
+    } else {
+        return 20;
+    }
+    */
+
+    return minutes + ":" + seconds + "." + milliseconds;
+}
+
+
+function spawnTargets() {
+    const canvas = document.getElementById("myCanvas");
+//spawned originale targets
+    targets = [];
+    for (var i=0; i<4; i++) {
+        let x = random(0, canvas.width*0.75);
+        let y = random(canvas.height*0.1, canvas.height*0.9);
+        targets.push(new GraphObj(x, y, targetWidth, targetHeight));
+    }
+}
+
+function updateTargets(target) {
+    // ersetzt hit target mit neuem target
+    targets = targets.filter(element => element != target);
+
+    // generiert neuen target
+    const canvas = document.getElementById("myCanvas");
+    let x = random(0, canvas.width*0.75);
+    let y = random(canvas.height*0.1, canvas.height*0.9);
+    targets.push(new GraphObj(x, y, targetWidth, targetHeight));
+}
+
+//function myrandom(min, max) {
+//    return Math.floor(min + (max-min)*Math.random());
+//}
+
+//random function um coordinaten der neuen targets zu erstellen
+function random(min, max) {
+    var aux = (1000000 * Math.random()).toFixed(0);
+    return ((aux%(max-min+1))+min);
+}
+
+        </script>
+    </head>
+    <body>
+
+        <h1>Lehrer Simulator</h1>
+        <div class="score-container">
+	    <div class="score">Verteilte Fleck: <span id="score">0</span></div>
+	    <div id="countdown" class="countdown">0:10.00</div>
+        </div>
+
+        <div style="position:relative;width:1000px">
+            <canvas id="myCanvas" width="1000" height="600"></canvas>
+	    <div id="overlay"></div>
+            <button id="startButton" type="button" onclick="start()">Start</button>
+        </div>
+
+	<div class="statistics">
+	    Zielgenauigkeit: <span id="accuracy">n/a</span>,
+	    Treffer: <span id="hits">0</span>,
+	    Klicks: <span id="clicks">0</span></div>
+    </body>
+</html>
